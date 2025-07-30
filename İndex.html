@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Gelişmiş Site & Şifre Yönetici</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header>
+    Gelişmiş Site & Şifre Yönetici
+  </header>
+  <main>
+    <section id="addSiteSection">
+      <h2>Yeni Site Ekle</h2>
+      <div class="form-group">
+        <label for="siteName">Site İsmi</label>
+        <input id="siteName" type="text" placeholder="Facebook, Twitter, vs." />
+      </div>
+      <div class="form-group">
+        <label for="siteURL">Site URL</label>
+        <input id="siteURL" type="url" placeholder="https://..." />
+      </div>
+      <div class="form-group">
+        <label for="siteGroup">Grup</label>
+        <input id="siteGroup" type="text" placeholder="Sosyal Medya, Alışveriş, vs." />
+      </div>
+      <div class="form-group">
+        <label for="siteTags">Etiketler (virgülle ayır)</label>
+        <input id="siteTags" type="text" placeholder="örnek: sosyal, haber, video" />
+      </div>
+      <button id="saveSiteBtn">Kaydet</button>
+    </section>
+
+    <section id="siteListSection">
+      <h2>Site Listesi</h2>
+      <div class="filter-bar">
+        <input type="search" id="searchInput" placeholder="Ara..." />
+        <select id="filterGroup">
+          <option value="">Tüm Gruplar</option>
+        </select>
+      </div>
+      <table class="site-list" aria-label="Site Listesi">
+        <thead>
+          <tr>
+            <th>İsim</th>
+            <th>URL</th>
+            <th>Grup</th>
+            <th>Etiketler</th>
+            <th>İşlemler</th>
+          </tr>
+        </thead>
+        <tbody id="siteListBody">
+          <!-- Site satırları buraya eklenecek -->
+        </tbody>
+      </table>
+    </section>
+
+    <section id="passwordSection">
+      <h2>Şifre Yönetimi</h2>
+      <button id="addPasswordBtn">Şifre Ekle</button>
+      <button id="exportDataBtn">Verileri Dışa Aktar (JSON)</button>
+      <button id="importDataBtn">Veri İçe Aktar (JSON)</button>
+      <button id="clearDataBtn">Tüm Verileri Sil</button>
+      <textarea id="importExportArea" style="width:100%; height:150px; margin-top:10px; display:none;"></textarea>
+      <table class="site-list" aria-label="Şifre Listesi" style="margin-top:10px;">
+        <thead>
+          <tr><th>Site</th><th>Şifre</th><th>İşlemler</th></tr>
+        </thead>
+        <tbody id="passwordListBody"></tbody>
+      </table>
+    </section>
+  </main>
+  <footer>
+    &copy; 2025 Senin Uygulaman
+  </footer>
+
+  <script>
+    // Veri modelimiz
+    let sites = [];
+    let passwords = [];
+
+    // DOM elemanları
+    const siteNameInput = document.getElementById('siteName');
+    const siteURLInput = document.getElementById('siteURL');
+    const siteGroupInput = document.getElementById('siteGroup');
+    const siteTagsInput = document.getElementById('siteTags');
+    const saveSiteBtn = document.getElementById('saveSiteBtn');
+    const siteListBody = document.getElementById('siteListBody');
+    const filterGroupSelect = document.getElementById('filterGroup');
+    const searchInput = document.getElementById('searchInput');
+
+    const addPasswordBtn = document.getElementById('addPasswordBtn');
+    const passwordListBody = document.getElementById('passwordListBody');
+    const exportDataBtn = document.getElementById('exportDataBtn');
+    const importDataBtn = document.getElementById('importDataBtn');
+    const clearDataBtn = document.getElementById('clearDataBtn');
+    const importExportArea = document.getElementById('importExportArea');
+
+    // Yükleme
+    window.onload = () => {
+      loadData();
+      renderSiteList();
+      populateFilterGroups();
+      renderPasswordList();
+    };
+
+    // LocalStorage'dan veri yükle
+    function loadData() {
+      const s = localStorage.getItem('sites');
+      sites = s ? JSON.parse(s) : [];
+      const p = localStorage.getItem('passwords');
+      passwords = p ? JSON.parse(p) : [];
+    }
+
+    // LocalStorage'a kaydet
+    function saveData() {
+      localStorage.setItem('sites', JSON.stringify(sites));
+      localStorage.setItem('passwords', JSON.stringify(passwords));
+    }
+
+    // Yeni site ekle
+    saveSiteBtn.addEventListener('click', () => {
+      let name = siteNameInput.value.trim();
+      let url = siteURLInput.value.trim();
+      let group = siteGroupInput.value.trim();
+      let tags = siteTagsInput.value.trim().split(',').map(t=>t.trim()).filter(t=>t);
+
+      if (!name || !url) {
+        alert('Lütfen site ismi ve URL giriniz!');
+        return;
+      }
+      if (!url.match(/^https?:\/\//)) {
+        url = 'https://' + url;
+      }
+
+      if (sites.find(s => s.url === url)) {
+        alert('Bu site zaten kayıtlı!');
+        return;
+      }
+
+      sites.push({name, url, group, tags});
+      saveData();
+      renderSiteList();
+      populateFilterGroups();
+      clearSiteForm();
+    });
+
+    function clearSiteForm() {
+      siteNameInput.value = '';
+      siteURLInput.value = '';
+      siteGroupInput.value = '';
+      siteTagsInput.value = '';
+    }
+
+    // Listeyi çiz
+    function renderSiteList() {
+      let filterGroup = filterGroupSelect.value.toLowerCase();
+      let searchTerm = searchInput.value.toLowerCase();
+
+      siteListBody.innerHTML = '';
+
+      let filteredSites = sites.filter(site => {
+        let matchGroup = filterGroup === '' || (site.group || '').toLowerCase() === filterGroup;
+        let matchSearch = site.name.toLowerCase().includes(searchTerm) || (site.group || '').toLowerCase().includes(searchTerm) || (site.tags.join(' ') || '').toLowerCase().includes(searchTerm);
+        return matchGroup && matchSearch;
+      });
+
+      filteredSites.forEach((site, index) => {
+        let tr = document.createElement('tr');
+
+        tr.innerHTML = `
+          <td>${site.name}</td>
+          <td><a href="${site.url}" target="_blank" rel="noopener">${site.url}</a></td>
+          <td>${site.group || '-'}</td>
+          <td>${site.tags.join(', ')}</td>
+          <td class="actions">
+            <button onclick="editSite(${index})">Düzenle</button>
+            <button onclick="deleteSite(${index})" class="delete">Sil</button>
+            <button onclick="copyHostname('${site.url}')">Hostname Kopyala</button>
+            <button onclick="openSite('${site.url}')">Aç</button>
+            <button onclick="openSiteIncognito('${site.url}')">Gizli Aç</button>
+          </td>
+        `;
+
+        siteListBody.appendChild(tr);
+      });
+    }
+
+    // Filtre grup seçeneklerini oluştur
+    function populateFilterGroups() {
+      let groups = Array.from(new Set(sites.map(s => s.group).filter(g => g && g.trim() !== '')));
+      filterGroupSelect.innerHTML = '<option value="">Tüm Gruplar</option>';
+      groups.forEach(g => {
+        let opt = document.createElement('option');
+        opt.value = g;
+        opt.textContent = g;
+        filterGroupSelect.appendChild(opt);
+      });
+    }
+
+    // Site sil
+    function deleteSite(index) {
+      if (!confirm('Bu siteyi silmek istediğinize emin misiniz?')) return;
+      sites.splice(index, 1);
+      saveData();
+      renderSiteList();
+      populateFilterGroups();
+    }
+
+    // Site düzenle
+    function editSite(index) {
+      let site = sites[index];
+      siteNameInput.value = site.name;
+      siteURLInput.value = site.url;
+      siteGroupInput.value = site.group;
+      siteTagsInput.value = site.tags.join(', ');
+      saveSiteBtn.textContent = 'Güncelle';
+
+      // Güncelleme fonksiyonunu değiştir
+      saveSiteBtn.onclick = () => {
+        let name = siteNameInput.value.trim();
+        let url = siteURLInput.value.trim();
+        let group = siteGroupInput.value.trim();
+        let tags = siteTagsInput.value.trim().split(',').map(t => t.trim()).filter(t => t);
+
+        if (!name || !url) {
+          alert('Lütfen site ismi ve URL giriniz!');
+          return;
+        }
+        if (!url.match(/^https?:\/\//)) {
+          url = 'https://' + url;
+        }
+
+        if (sites.some((s, i) => s.url === url && i !== index)) {
+          alert('Bu site zaten kayıtlı!');
+          return;
+        }
+
+        sites[index] = { name, url, group, tags };
+        saveData();
+        renderSiteList();
+        populateFilterGroups();
+        clearSiteForm();
+
+        saveSiteBtn.textContent = 'Kaydet';
+        saveSiteBtn.onclick = addSiteHandler;
+      };
+    }
+
+    // Default Kaydet fonksiyonu (boş fonksiyon, sonradan ekleniyor)
+    function addSiteHandler() {}
+
+    // Search ve filtre tetikleyiciler
+    filterGroupSelect.addEventListener('change', renderSiteList);
+    searchInput.addEventListener('input', renderSiteList);
+
+    // Kopyala hostname (basit)
+    function extractHostname(url) {
+      try {
+        return new URL(url).hostname;
+      } catch {
+        return url;
+      }
+    }
+    function copyHostname(url) {
+      const hostname = extractHostname(url);
+      try {
+        const tempInput = document.createElement('input');
+        document.body.appendChild(tempInput);
+        tempInput.value = hostname;
+        tempInput.select();
+        document.execCommand('copy');
+        tempInput.remove();
+        alert(`${hostname} kopyalandı.`);
+      } catch {
+        alert('Kopyalama desteklenmiyor.');
+      }
+    }
+
+    // Siteyi aç (mobilde varsayılan tarayıcıda)
+    function openSite(url) {
+      window.open(url, '_blank');
+    }
+
+    // Gizli sekmede açma (sınırlı destek, bazı tarayıcılarda çalışmayabilir)
+    function openSiteIncognito(url) {
+      alert('Gizli sekmede açma mobil tarayıcılarda desteklenmeyebilir.');
+      openSite(url);
+    }
+
+    // --------------------
+    // Şifre yönetimi
+    // --------------------
+
+    addPasswordBtn.addEventListener('click', () => {
+      let siteName = prompt("Şifre kaydetmek istediğiniz sitenin ismini girin:");
+      if (!siteName) return alert("İsim girmediniz.");
+
+      let password = prompt(`"${siteName}" için şifre girin:`);
+      if (!password) return alert("Şifre girmediniz.");
+
+      passwords.push({siteName, password});
+      saveData();
+      renderPasswordList();
+      alert(`"${siteName}" için şifre kaydedildi.`);
+    });
+
+    function renderPasswordList() {
+      passwordListBody.innerHTML = '';
+
+      if (passwords.length === 0) {
+        let tr = document.createElement('tr');
+        let td = document.createElement('td');
+        td.colSpan = 3;
+        td.textContent = 'Kayıtlı şifre yok.';
+        tr.appendChild(td);
+        passwordListBody.appendChild(tr);
+        return;
+      }
+
+      passwords.forEach((item, index) => {
+        let tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${item.siteName}</td>
+          <td>
+            <input type="password" readonly value="${item.password}" style="border:none; background:none; font-size:1rem; width:100%;" />
+            <button onclick="togglePasswordVisibility(this)">Göster/Gizle</button>
+            <button onclick="copyPassword('${item.password}')">Kopyala</button>
+          </td>
+          <td>
+            <button onclick="deletePassword(${index})" class="delete">Sil</button>
+          </td>
+        `;
+        passwordListBody.appendChild(tr);
+      });
+    }
+
+    function togglePasswordVisibility(btn) {
+      const input = btn.previousElementSibling;
+      if (input.type === "password") {
+        input.type = "text";
+        btn.textContent = "Gizle";
+      } else {
+        input.type = "password";
+        btn.textContent = "Göster";
+      }
+    }
+
+    function copyPassword(password) {
+      try {
+        const tempInput = document.createElement('input');
+        document.body.appendChild(tempInput);
+        tempInput.value = password;
+        tempInput.select();
+        document.execCommand('copy');
+        tempInput.remove();
+        alert('Şifre kopyalandı.');
+      } catch {
+        alert('Kopyalama desteklenmiyor.');
+      }
+    }
+
+    function deletePassword(index) {
+      if (!confirm('Bu şifreyi silmek istediğinize emin misiniz?')) return;
+      passwords.splice(index, 1);
+      saveData();
+      renderPasswordList();
+    }
+
+    // Dışa aktar
+    exportDataBtn.addEventListener('click', () => {
+      let data = JSON.stringify({sites, passwords}, null, 2);
+      importExportArea.style.display = 'block';
+      importExportArea.value = data;
+      importExportArea.select();
+      alert('Veriler JSON formatında aşağıdaki alanda görünüyor, kopyalayabilirsiniz.');
+    });
+
+    // İçe aktar
+    importDataBtn.addEventListener('click', () => {
+      if (importExportArea.style.display === 'none') {
+        importExportArea.style.display = 'block';
+        importExportArea.value = '';
+      } else {
+        try {
+          let data = JSON.parse(importExportArea.value);
+          if (data.sites && data.passwords) {
+            sites = data.sites;
+            passwords = data.passwords;
+            saveData();
+            renderSiteList();
+            renderPasswordList();
+            populateFilterGroups();
+            alert('Veriler başarıyla yüklendi.');
+            importExportArea.style.display = 'none';
+          } else {
+            alert('Geçersiz veri formatı.');
+          }
+        } catch {
+          alert('JSON hatası. Lütfen doğru formatta veri girin.');
+        }
+      }
+    });
+
+    // Tüm verileri temizle
+    clearDataBtn.addEventListener('click', () => {
+      if (!confirm('Tüm veriler kalıcı olarak silinecek. Emin misiniz?')) return;
+      sites = [];
+      passwords = [];
+      saveData();
+      renderSiteList();
+      renderPasswordList();
+      populateFilterGroups();
+      importExportArea.style.display = 'none';
+      alert('Tüm veriler silindi.');
+    });
+  </script>
+</body>
+  </html>
